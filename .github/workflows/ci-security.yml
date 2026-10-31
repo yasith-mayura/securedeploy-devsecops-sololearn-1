@@ -37,7 +37,7 @@ jobs:
         run: |
           docker run --rm \
             -v "$PWD:/repo" \
-            zricethezav/gitleaks:REPLACE_WITH_PINNED_VERSION \
+            zricethezav/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb  \
             detect --source=/repo --no-banner
 
   # infrastructure-security:
@@ -94,7 +94,7 @@ jobs:
             -o cyclonedx-json=sbom.json
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@REPLACE_WITH_VERIFIED_FULL_SHA
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: securedeploy-sbom
           path: sbom.json
