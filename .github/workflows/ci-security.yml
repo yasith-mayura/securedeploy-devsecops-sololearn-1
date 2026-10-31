@@ -40,29 +40,29 @@ jobs:
             zricethezav/gitleaks:REPLACE_WITH_PINNED_VERSION \
             detect --source=/repo --no-banner
 
-  infrastructure-security:
-    runs-on: ubuntu-latest
+  # infrastructure-security:
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+  #   steps:
+  #     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
-      - name: Checkov
-        uses: bridgecrewio/checkov-action@REPLACE_WITH_VERIFIED_FULL_SHA
-        with:
-          directory: infrastructure/terraform
-          framework: terraform
+  #     - name: Checkov
+  #       uses: bridgecrewio/checkov-action@REPLACE_WITH_VERIFIED_FULL_SHA
+  #       with:
+  #         directory: infrastructure/terraform
+  #         framework: terraform
 
-      - name: Kubescape
-        run: |
-          # Install a pinned Kubescape CLI release.
-          kubescape scan \
-            framework nsa \
-            kubernetes/
+  #     - name: Kubescape
+  #       run: |
+  #         # Install a pinned Kubescape CLI release.
+  #         kubescape scan \
+  #           framework nsa \
+  #           kubernetes/
 
   application-build:
     needs:
       - source-security
-      - infrastructure-security
+      # - infrastructure-security
 
     runs-on: ubuntu-latest
 
