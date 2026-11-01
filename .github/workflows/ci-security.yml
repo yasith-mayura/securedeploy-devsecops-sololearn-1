@@ -45,6 +45,15 @@ jobs:
             -v "$PWD:/repo" \
             zricethezav/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb  \
             detect --source=/repo --no-banner
+      - name: Validate security checks
+        if: always()
+        run: |
+          if [[ "${{ steps.bandit.outcome }}" != "success" ]] || \
+             [[ "${{ steps.pip_audit.outcome }}" != "success" ]] || \
+             [[ "${{ steps.gitleaks.outcome }}" != "success" ]]; then
+            echo "Security checks failed. Integration is blocked."
+            exit 1
+          fi
 
   # infrastructure-security:
   #   runs-on: ubuntu-latest
@@ -84,6 +93,11 @@ jobs:
           docker build \
             -t securedeploy-api:${GITHUB_SHA} \
             application/backend/
+            
+      - name: Install Trivy
+        uses: aquasecurity/setup-trivy@<PINNED_COMMIT_SHA>
+        with:
+          version: v0.68.2
 
       - name: Trivy scan
         run: |
@@ -104,15 +118,5 @@ jobs:
         with:
           name: securedeploy-sbom
           path: sbom.json
-
-      - name: Validate security checks
-        if: always()
-        run: |
-          if [[ "${{ steps.bandit.outcome }}" != "success" ]] || \
-             [[ "${{ steps.pip_audit.outcome }}" != "success" ]] || \
-             [[ "${{ steps.gitleaks.outcome }}" != "success" ]]; then
-            echo "Security checks failed. Integration is blocked."
-            exit 1
-          fi
 
           echo "All security checks passed!"
