@@ -5,7 +5,9 @@ FROM cgr.dev/chainguard/python:latest-dev AS builder
 WORKDIR /build
 
 COPY requirements.txt .
-
+# Upgrade setuptools in the base Python environment
+RUN python -m pip install --no-cache-dir \
+    --upgrade "setuptools>=78.1.1"
 # Create virtual environment in a writable directory
 RUN python -m venv /home/nonroot/venv
 
