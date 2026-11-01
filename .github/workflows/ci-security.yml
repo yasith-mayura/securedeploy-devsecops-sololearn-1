@@ -93,9 +93,9 @@ jobs:
           docker build \
             -t securedeploy-api:${GITHUB_SHA} \
             application/backend/
-            
+
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@<PINNED_COMMIT_SHA>
+        uses: aquasecurity/setup-trivy@81e514348e19b6112ce2a7e3ecbafe19c1e1f567
         with:
           version: v0.68.2
 
@@ -118,5 +118,3 @@ jobs:
         with:
           name: securedeploy-sbom
           path: sbom.json
-
-          echo "All security checks passed!"
