@@ -1,0 +1,173 @@
+name: SecureDeploy CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  source-security:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Python setup
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r application/backend/requirements.txt
+          pip install bandit pip-audit
+
+      - name: Run Bandit
+        id: bandit
+        continue-on-error: true
+        run: bandit -r application/backend/
+
+      - name: Run pip-audit
+        id: pip_audit
+        continue-on-error: true
+        run: pip-audit -r application/backend/requirements.txt
+
+      - name: Secret scan
+        id: gitleaks
+        continue-on-error: true
+        run: |
+          docker run --rm \
+            -v "$PWD:/repo" \
+            zricethezav/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb  \
+            detect --source=/repo --no-banner
+      - name: Validate security checks
+        if: always()
+        run: |
+          if [[ "${{ steps.bandit.outcome }}" != "success" ]] || \
+             [[ "${{ steps.pip_audit.outcome }}" != "success" ]] || \
+             [[ "${{ steps.gitleaks.outcome }}" != "success" ]]; then
+            echo "Security checks failed. Integration is blocked."
+            exit 1
+          fi
+
+  # infrastructure-security:
+  #   runs-on: ubuntu-latest
+
+  #   steps:
+  #     - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+  #     - name: Checkov
+  #       uses: bridgecrewio/checkov-action@REPLACE_WITH_VERIFIED_FULL_SHA
+  #       with:
+  #         directory: infrastructure/terraform
+  #         framework: terraform
+
+  #     - name: Kubescape
+  #       run: |
+  #         # Install a pinned Kubescape CLI release.
+  #         kubescape scan \
+  #           framework nsa \
+  #           kubernetes/
+
+  application-build:
+    needs:
+      - source-security
+      # - infrastructure-security
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    
+    steps:
+      # 1. Checkout source code
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      # 2. Build Docker image
+      - name: Build application image
+        id: build
+        run: |
+          docker build \
+            -t securedeploy-api:${GITHUB_SHA} \
+            application/backend/
+
+      # 3. Scan image using official Trivy container
+      - name: Trivy security scan
+        id: trivy
+        continue-on-error: true
+        run: |
+          mkdir -p "${RUNNER_TEMP}/trivy-cache"
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v "${RUNNER_TEMP}/trivy-cache:/root/.cache/" \
+            aquasec/trivy:0.68.2 \
+            image \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            securedeploy-api:${GITHUB_SHA}
+
+      # 4. Install pinned Syft release
+      - name: Install Syft
+        id: install_syft
+        run: |
+          SYFT_VERSION="1.55.0"
+          SYFT_FILE="syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+
+          curl -fL --retry 3 \
+            -o "${SYFT_FILE}" \
+            "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/${SYFT_FILE}"
+
+          echo "Verifying Syft checksum..."
+
+          echo "bb65249542db5fedeeb4d3f9b018b75e7264dbfbbb10486f044581a92f90490d  ${SYFT_FILE}" \
+            | sha256sum --check
+
+          tar -xzf "${SYFT_FILE}"
+
+          sudo install -m 0755 syft /usr/local/bin/syft
+
+          syft version
+
+      # 5. Generate SBOM
+      - name: Generate SBOM
+        id: sbom
+        continue-on-error: true
+        run: |
+          syft securedeploy-api:${GITHUB_SHA} \
+            -o cyclonedx-json=sbom.json
+
+      # 6. Upload SBOM
+      - name: Upload SBOM
+        id: upload_sbom
+        if: always() && steps.sbom.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: securedeploy-sbom
+          path: sbom.json
+
+      # 7. Validate all results
+      - name: Validate security results
+        if: always()
+        run: |
+          if [[ "${{ steps.build.outcome }}" != "success" ]] || \
+            [[ "${{ steps.trivy.outcome }}" != "success" ]] || \
+            [[ "${{ steps.install_syft.outcome }}" != "success" ]] || \
+            [[ "${{ steps.sbom.outcome }}" != "success" ]] || \
+            [[ "${{ steps.upload_sbom.outcome }}" != "success" ]]; then
+
+            echo "Security pipeline failed."
+            echo "Integration is blocked."
+            exit 1
+          fi
+
+          echo "All security checks passed!"
