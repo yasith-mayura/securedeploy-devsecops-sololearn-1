@@ -11,7 +11,7 @@ RUN python -m venv /venv && \
 
 
 # Stage 2: Minimal production runtime
-FROM cgr.dev/chainguard/python:3.12 AS runtime
+FROM cgr.dev/chainguard/python:latest AS runtime
 
 WORKDIR /app
 
