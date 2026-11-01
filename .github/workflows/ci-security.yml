@@ -28,12 +28,18 @@ jobs:
           pip install bandit pip-audit
 
       - name: Run Bandit
+        id: bandit
+        continue-on-error: true
         run: bandit -r application/backend/
 
       - name: Run pip-audit
+        id: pip_audit
+        continue-on-error: true
         run: pip-audit -r application/backend/requirements.txt
 
       - name: Secret scan
+        id: gitleaks
+        continue-on-error: true
         run: |
           docker run --rm \
             -v "$PWD:/repo" \
@@ -98,3 +104,15 @@ jobs:
         with:
           name: securedeploy-sbom
           path: sbom.json
+
+      - name: Validate security checks
+        if: always()
+        run: |
+          if [[ "${{ steps.bandit.outcome }}" != "success" ]] || \
+             [[ "${{ steps.pip_audit.outcome }}" != "success" ]] || \
+             [[ "${{ steps.gitleaks.outcome }}" != "success" ]]; then
+            echo "Security checks failed. Integration is blocked."
+            exit 1
+          fi
+
+          echo "All security checks passed!"
