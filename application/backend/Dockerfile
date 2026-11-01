@@ -1,7 +1,6 @@
 
 # Stage 1: Install application dependencies
-FROM cgr.dev/chainguard/python:3.12-dev AS builder
-
+FROM cgr.dev/chainguard/python:latest-dev AS builder
 WORKDIR /build
 
 COPY requirements.txt .
