@@ -11,9 +11,9 @@ RUN python -m venv /home/nonroot/venv
 
 ENV PATH="/home/nonroot/venv/bin:$PATH"
 
-RUN pip install --no-cache-dir \
-    -r requirements.txt
-
+# Install dependencies and fix setuptools vulnerability
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir --upgrade "setuptools>=78.1.1"
 
 # Stage 2: Production runtime
 FROM cgr.dev/chainguard/python:latest
