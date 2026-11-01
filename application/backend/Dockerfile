@@ -1,25 +1,33 @@
-FROM python:3.12-slim
 
-# Update Debian packages
-RUN apt-get update && \
-    apt-get upgrade -y && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+# Stage 1: Install application dependencies
+FROM cgr.dev/chainguard/python:3.12-dev AS builder
 
-WORKDIR /app
+WORKDIR /build
 
 COPY requirements.txt .
 
-RUN pip install --no-cache-dir \
-    --requirement requirements.txt
+RUN python -m venv /venv && \
+    /venv/bin/pip install --no-cache-dir \
+    -r requirements.txt
 
-COPY app.py .
 
-RUN useradd --system --uid 10001 appuser
+# Stage 2: Minimal production runtime
+FROM cgr.dev/chainguard/python:3.12 AS runtime
 
-USER 10001
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/venv/bin:${PATH}"
+
+# Copy only installed dependencies
+COPY --from=builder /venv /venv
+
+# Copy application
+COPY --chown=65532:65532 app.py .
+
+# Run as non-root user
+USER 65532
 
 EXPOSE 5000
 
@@ -29,3 +37,4 @@ CMD ["gunicorn", \
      "--access-logfile", "-", \
      "--error-logfile", "-", \
      "app:app"]
+
